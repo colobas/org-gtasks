@@ -1,4 +1,68 @@
-* [DEPRECATED] Org-Gtasks
+* org-gtasks — Heading-level sync between Org and Google Tasks
 
-Org-Gtasks is now hosted on SourceHut:
-https://git.sr.ht/~jmasson/org-gtasks
+Fork of [[https://github.com/JulienMasson/org-gtasks][JulienMasson/org-gtasks]], rewritten for heading-level sync.
+
+Unlike the original, this version does *not* create or own org files.
+Instead it syncs individual TODO headings (matched by =:GTASKS_ID:= property)
+within your existing org files.
+
+** How it works
+
+Two Google Tasks lists are used:
+
+- *Push list* (default: "org") — Emacs pushes your active TODOs here so you can
+  see and complete them from the Google Tasks phone app.
+- *Pull list* (default: "inbox") — Tasks you create on your phone get pulled
+  into your =inbox.org= as new TODO items.
+
+Completing a task on your phone marks it DONE in org on next sync.
+
+** Setup
+
+1. In your [[https://console.developers.google.com/][Google Cloud Console]] project (the same one you use for org-gcal),
+   enable the *Tasks API*.
+
+2. Add to your Emacs config:
+
+#+begin_src elisp
+(use-package! org-gtasks
+  :after org
+  :config
+  (org-gtasks-register-account
+   :name "work"
+   :login "you@example.com"
+   :client-id "your-client-id"
+   :client-secret "your-client-secret"
+   :push-tasklist "org"       ; Google Tasks list name for pushed TODOs
+   :pull-tasklist "inbox"     ; Google Tasks list name for phone capture
+   :inbox-file "~/org/inbox.org"
+   :agenda-files-fn (lambda () org-agenda-files)))
+#+end_src
+
+3. Run =M-x org-gtasks-sync= — on first run it will open a browser for OAuth.
+
+** Commands
+
+| Command                    | Description                                           |
+|----------------------------+-------------------------------------------------------|
+| =org-gtasks-sync=          | Bidirectional: pull phone tasks, then push org TODOs  |
+| =org-gtasks-push=          | Push org TODOs → Google Tasks                         |
+| =org-gtasks-pull=          | Pull Google Tasks → org inbox                         |
+| =org-gtasks-clear-completed= | Remove completed tasks from the push list (declutter) |
+
+** Properties
+
+Each synced heading gets a =:GTASKS_ID:= property linking it to the
+Google Tasks API. Don't edit this manually.
+
+** Limitations
+
+- Google Tasks only supports: title, notes, due date, status (done/not done).
+  Org priorities, tags, SCHEDULED vs DEADLINE, etc. don't round-trip.
+- The push list shows a flat view of TODOs — no project grouping.
+- DONE-refile hooks in Emacs won't fire for tasks completed on the phone
+  (the heading is simply marked DONE in-place on next sync).
+
+** License
+
+GPL-3.0 — see LICENSE.
