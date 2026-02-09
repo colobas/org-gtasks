@@ -594,14 +594,20 @@ New tasks are appended under the Tasks heading in inbox.org."
                 (status (plist-get task :status))
                 (notes (plist-get task :notes))
                 (due (plist-get task :due)))
-            ;; Skip if: empty title, already have this ID, already have this title, or completed
-            (when (and (not (string-empty-p (string-trim title)))
-                       (not (member task-id known-ids))
-                       (not (member title known-titles))
-                       (not (string= status "completed")))
+            (cond
+             ;; If we know this task ID, check if it's completed remotely
+             ((member task-id known-ids)
+              (when (string= status "completed")
+                ;; Mark it DONE locally
+                (org-gtasks--mark-done-by-id files task-id)
+                (cl-incf pulled)))
+             ;; New task (not in our files by ID or title) - add it
+             ((and (not (string-empty-p (string-trim title)))
+                   (not (member title known-titles))
+                   (not (string= status "completed")))
               (org-gtasks--append-to-inbox
                inbox-file task-id title notes due)
-              (cl-incf pulled)))))
+              (cl-incf pulled))))))
       (message "org-gtasks pull [%s]: %d new tasks added to inbox" name pulled))))
 
 (defun org-gtasks--collect-gtasks-ids (file)
@@ -642,6 +648,26 @@ New tasks are appended under the Tasks heading in inbox.org."
                                 (org-element-property :title el)))))
                    (push title titles)))))))))
     titles))
+
+(defun org-gtasks--mark-done-by-id (files gtasks-id)
+  "Find heading with GTASKS_ID in FILES and mark it DONE."
+  (catch 'found
+    (dolist (file files)
+      (when (and file (file-exists-p file))
+        (with-current-buffer (find-file-noselect file)
+          (org-with-wide-buffer
+           (goto-char (point-min))
+           (when (re-search-forward
+                  (format ":%s:\\s-+%s" 
+                          (regexp-quote org-gtasks-gtasks-id-property)
+                          (regexp-quote gtasks-id))
+                  nil t)
+             (org-back-to-heading t)
+             (let ((current-state (org-element-property :todo-keyword (org-element-at-point))))
+               (when (member current-state org-gtasks-push-todo-states)
+                 (org-todo "DONE")
+                 (save-buffer)
+                 (throw 'found t)))))))))))
 
 (defun org-gtasks--append-to-inbox (file task-id title notes due)
   "Append a new TODO to FILE with TASK-ID, TITLE, NOTES, and DUE date."
