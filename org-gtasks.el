@@ -582,20 +582,22 @@ New tasks are appended under the Tasks heading in inbox.org."
            (pulled 0))
       (unless inbox-file
         (error "org-gtasks: no inbox-file configured for account %s" name))
-      ;; Collect all known GTASKS_IDs from ALL agenda files, not just inbox
+      ;; Collect all known GTASKS_IDs and titles from ALL agenda files
       (let* ((files (if (org-gtasks-account-agenda-files-fn account)
                         (funcall (org-gtasks-account-agenda-files-fn account))
                       (list inbox-file)))
-             (known-ids (org-gtasks--collect-gtasks-ids-from-files files)))
+             (known-ids (org-gtasks--collect-gtasks-ids-from-files files))
+             (known-titles (org-gtasks--collect-todo-titles-from-files files)))
         (dolist (task remote-tasks)
           (let ((task-id (plist-get task :id))
                 (title (or (plist-get task :title) ""))
                 (status (plist-get task :status))
                 (notes (plist-get task :notes))
                 (due (plist-get task :due)))
-            ;; Skip empty titles, already-known tasks, and completed tasks
+            ;; Skip if: empty title, already have this ID, already have this title, or completed
             (when (and (not (string-empty-p (string-trim title)))
                        (not (member task-id known-ids))
+                       (not (member title known-titles))
                        (not (string= status "completed")))
               (org-gtasks--append-to-inbox
                inbox-file task-id title notes due)
@@ -622,6 +624,24 @@ New tasks are appended under the Tasks heading in inbox.org."
       (when (and file (file-exists-p file))
         (setq all-ids (append all-ids (org-gtasks--collect-gtasks-ids file)))))
     all-ids))
+
+(defun org-gtasks--collect-todo-titles-from-files (files)
+  "Collect all TODO heading titles from FILES (for duplicate detection)."
+  (let (titles)
+    (dolist (file files)
+      (when (and file (file-exists-p file))
+        (with-current-buffer (find-file-noselect file)
+          (org-with-wide-buffer
+           (goto-char (point-min))
+           (while (re-search-forward org-heading-regexp nil t)
+             (let* ((el (org-element-at-point))
+                    (todo-state (org-element-property :todo-keyword el)))
+               (when todo-state
+                 (let ((title (substring-no-properties
+                               (org-element-interpret-data
+                                (org-element-property :title el)))))
+                   (push title titles)))))))))
+    titles))
 
 (defun org-gtasks--append-to-inbox (file task-id title notes due)
   "Append a new TODO to FILE with TASK-ID, TITLE, NOTES, and DUE date."
