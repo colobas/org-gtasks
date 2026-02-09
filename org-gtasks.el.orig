@@ -101,12 +101,6 @@
   :type '(repeat string)
   :group 'org-gtasks)
 
-(defcustom org-gtasks-push-tag "personal"
-  "Only push TODO items with this tag. If nil, push all eligible TODOs."
-  :type '(choice (const :tag "Push all" nil)
-                 (string :tag "Tag name"))
-  :group 'org-gtasks)
-
 (defcustom org-gtasks-token-directory user-emacs-directory
   "Directory where refresh tokens are stored."
   :type 'directory
@@ -424,7 +418,6 @@ Returns a list of plists with keys:
                  (let* ((title (substring-no-properties
                                 (org-element-interpret-data
                                  (org-element-property :title el))))
-                        (tags (org-element-property :tags el))
                         (gtasks-id (org-entry-get (point) org-gtasks-gtasks-id-property))
                         (deadline (org-element-property :deadline el))
                         (scheduled (org-element-property :scheduled el))
@@ -441,19 +434,16 @@ Returns a list of plists with keys:
                                     (when (< start contents-end)
                                       (string-trim
                                        (buffer-substring-no-properties start contents-end))))))))
-                   ;; Only include if tag filter matches (or is disabled)
-                   (when (or (null org-gtasks-push-tag)
-                             (member org-gtasks-push-tag tags))
-                     (push (list :file file
-                                 :point (point)
-                                 :title title
-                                 :state todo-state
-                                 :deadline deadline
-                                 :scheduled scheduled
-                                 :closed closed
-                                 :gtasks-id gtasks-id
-                                 :body (or body ""))
-                           results))))))))))
+                   (push (list :file file
+                               :point (point)
+                               :title title
+                               :state todo-state
+                               :deadline deadline
+                               :scheduled scheduled
+                               :closed closed
+                               :gtasks-id gtasks-id
+                               :body (or body ""))
+                         results)))))))))
     (nreverse results)))
 
 ;;;; ---- Push: Org → Google Tasks ----
