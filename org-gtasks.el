@@ -582,8 +582,11 @@ New tasks are appended under the Tasks heading in inbox.org."
            (pulled 0))
       (unless inbox-file
         (error "org-gtasks: no inbox-file configured for account %s" name))
-      ;; Collect all known GTASKS_IDs from the inbox file
-      (let ((known-ids (org-gtasks--collect-gtasks-ids inbox-file)))
+      ;; Collect all known GTASKS_IDs from ALL agenda files, not just inbox
+      (let* ((files (if (org-gtasks-account-agenda-files-fn account)
+                        (funcall (org-gtasks-account-agenda-files-fn account))
+                      (list inbox-file)))
+             (known-ids (org-gtasks--collect-gtasks-ids-from-files files)))
         (dolist (task remote-tasks)
           (let ((task-id (plist-get task :id))
                 (title (or (plist-get task :title) ""))
@@ -612,6 +615,14 @@ New tasks are appended under the Tasks heading in inbox.org."
            (push (string-trim (match-string 1)) ids)))))
     ids))
 
+(defun org-gtasks--collect-gtasks-ids-from-files (files)
+  "Collect all GTASKS_ID property values from all FILES."
+  (let (all-ids)
+    (dolist (file files)
+      (when (and file (file-exists-p file))
+        (setq all-ids (append all-ids (org-gtasks--collect-gtasks-ids file)))))
+    all-ids))
+
 (defun org-gtasks--append-to-inbox (file task-id title notes due)
   "Append a new TODO to FILE with TASK-ID, TITLE, NOTES, and DUE date."
   (with-current-buffer (find-file-noselect file)
@@ -629,7 +640,11 @@ New tasks are appended under the Tasks heading in inbox.org."
                           (point-max)))))
        (goto-char tasks-end)
        (unless (bolp) (insert "\n"))
-       (insert (format "** TODO %s\n" title))
+       ;; Add tag if org-gtasks-push-tag is set
+       (let ((tag-str (if org-gtasks-push-tag
+                          (format " :%s:" org-gtasks-push-tag)
+                        "")))
+         (insert (format "** TODO %s%s\n" title tag-str)))
        (when due
          (insert (format "   DEADLINE: <%s>\n" (org-gtasks--format-iso2org due))))
        (insert (format "   :PROPERTIES:\n   :%s: %s\n   :END:\n"
